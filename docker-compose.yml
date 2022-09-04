@@ -1,0 +1,88 @@
+version: '3.8'
+
+#Volumenes externos para lograr la persistencia en emqx
+services:
+
+#Servicio de MONGO
+  mongo:
+    container_name: mongo
+    image: mongo:latest #mongo:4.4
+    restart: always
+    ports:
+      - 27017:27017 #puerto para conectar a mongoDB
+
+    volumes:
+      - ./mongodata:/data/db    # crea una carpeta llamada mongodata 
+                                # para lograr la persistencia
+
+    environment:
+        TZ: "America/Bogota" #Zona horaria
+        #Credenciales para poder acceder a mongo
+        MONGO_INITDB_ROOT_USERNAME: root
+        MONGO_INITDB_ROOT_PASSWORD: root
+  
+  #Servicio de EMQX
+  emqx: #etiquetamos el servivicio como emqx
+   container_name: emqx
+   image: emqx/emqx:latest #emqx/emqx:4.3.10
+   restart: always #Si se cierra, la terminal se reinica automaticamente
+   ports:
+     - 18083:18083 #Puerto para el dashboard. Se asigna una varible de entorno (archivo .env) para asignar el puerto externo del contenedor (18084)
+     - 18084:18084 #conexión con el dashboard de manera segura (ssl)
+     - 8083:8083 # puerto mqtt inseguro
+     - 1883:1883 
+     - 8883:8883 
+     - 8084:8084 # puerto mqtt con seguridad ssl
+     - 8085:8081
+
+   links:
+     - mongo  # url para apuntar al servicio de mongo   
+
+   environment: # Configuración para cambiar parámetros de emqx
+
+     EMQX_NAME: sistema_iot #Se asigna un nombre para el administrador del dashboard
+     EMQX_HOST: 127.0.0.1  #dirección ip del servidor
+     EMQX_LISTENER__WS__EXTERNAL__MAX_CONNECTIONS: 15000   #listener.ws.external.max_connections = 15000
+     EMQX_LISTENER__TCP__EXTERNAL__MAX_CONNECTIONS: 20000  #listener.tcp.external.max_connections = 20000
+     TZ: "America/Bogota" #zona horaria
+     EMQX_DASHBOARD__DEFAULT_USER__LOGIN: "user"   # dashboard.default_user.login = admin --> Nomnre de usuario del dashboard de emqx
+     EMQX_DASHBOARD__DEFAULT_USER__PASSWORD: "emqx111"     #Plugin emqx_dashboard.conf --> dashboard.default_user.password = emqx111
+     EMQX_ALLOW_ANONYMOUS: "false"   #Conectarse con credenciales (por defecto viene en true) --> allow_anonymous = false
+     EMQX_ACL_NOMATCH: "deny"  #acl_nomatch = allow --> Evita que el cliente logeado se conecte a todos topics
+
+     #####Configuración para la autenticación con mongo
+     EMQX_AUTH__MONGO__TYPE: single
+     EMQX_AUTH__MONGO__TOPOLOGY__POOL_SIZE: 1
+     EMQX_AUTH__MONGO__TOPOLOGY__MAX_OVERFLOW: 0
+
+     EMQX_AUTH__MONGO__SERVER: "mongo:27017"
+     EMQX_AUTH__MONGO__POOL: 8 # cantidad de conexiones administradas
+
+     #usuario y password con el que se autentifica mongo en emqx, es el mismo que se usa para acceder a mongo
+     EMQX_AUTH__MONGO__username: "root" 
+     EMQX_AUTH__MONGO__PASSWORD: "root"
+     EMQX_AUTH__MONGO__AUTH_SOURCE: admin
+
+     #Base de datos y colección para otorgar permisos de acceso en mongo 
+     EMQX_AUTH__MONGO__DATABASE: "IoTDB" 
+     EMQX_AUTH__MONGO__AUTH_QUERY__COLLECTION: "emqxauthrules"
+     
+     #Configuración para permitir privilegios de super usuario en mongo desde emqx, por defecto se deja deshabilitado
+     EMQX_AUTH__MONGO__SUPER_QUERY__COLLECTION: "emqxauthrules"
+     EMQX_AUTH__MONGO__SUPER_QUERY__SUPER_FIELD: "is_superuser" 
+     EMQX_AUTH__MONGO__SUPER_QUERY__SELECTOR: "username=%u"
+     EMQX_AUTH__MONGO__SUPER_QUERY: "off"
+
+     #Configuración para permitir que clientes se pueden conectar 
+     EMQX_AUTH__MONGO__AUTH_QUERY__PASSWORD_HASH: plain #El password se deja en texto plano para evitar configuraciones complejas
+     EMQX_AUTH__MONGO__AUTH_QUERY__PASSWORD_FIELD: "password" # Busca un campo llamado password en la colección emqxauthrules para dar acceso
+     EMQX_AUTH__MONGO__AUTH_QUERY__SELECTOR: "username=%u" #Busca un campo llamado usuario en la colección emqxauthrules para dar acceso
+
+    #Lista de control de acceso (ACL)
+     EMQX_AUTH__MONGO__ACL_QUERY: "on" #Habilita los ACL en mongo 
+     EMQX_AUTH__MONGO__ACL_QUERY__COLLECTION: "emqxauthrules"  #auth.mongo.acl_query.collection = emqxauthrules --> Busca la colección donde estan alojados los ACL que en este caso serán los campos subsibre y publish
+     EMQX_AUTH__MONGO__ACL_QUERY_SELECTOR: "username=%u"     # auth.mongo.acl_query.selector = username=%u  --> Busca el campo usuarname para acceder a los ACL    
+
+     #Habilita los plugin de interes de manera automática
+     EMQX_LOADED_PLUGIN: "emqx_recon, emqx_retainer, emqx_management, emqx_dashboard, emqx_auth_mongo" # plugin de reconección automática, de msg retenidos, de administración, del dashboard
+                                                                                                       # y de la autenticación de mongo
