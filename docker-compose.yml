@@ -47,8 +47,8 @@ services:
      TZ: "America/Bogota" #zona horaria
      EMQX_DASHBOARD__DEFAULT_USER__LOGIN: "user"   # dashboard.default_user.login = admin --> Nomnre de usuario del dashboard de emqx
      EMQX_DASHBOARD__DEFAULT_USER__PASSWORD: "emqx111"     #Plugin emqx_dashboard.conf --> dashboard.default_user.password = emqx111
-     EMQX_ALLOW_ANONYMOUS: "false"   #Conectarse con credenciales (por defecto viene en true) --> allow_anonymous = false
-     EMQX_ACL_NOMATCH: "deny"  #acl_nomatch = allow --> Evita que el cliente logeado se conecte a todos topics
+     EMQX_ALLOW_ANONYMOUS: "true"   #Conectarse con credenciales (por defecto viene en true) --> allow_anonymous = false
+     EMQX_ACL_NOMATCH: "allow"  #acl_nomatch = deny --> Evita que el cliente logeado se conecte a todos topics
 
      #####Configuración para la autenticación con mongo
      EMQX_AUTH__MONGO__TYPE: single
